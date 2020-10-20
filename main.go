@@ -71,6 +71,36 @@ func main() {
 		return
 	}
 
-	log.Println("Ensured CACertPEM:", string(caCertPEM))
-	log.Println("Ensured CAKeyPEM:", string(caKeyPEM))
+	log.Println("Bootstrapper CA Ensured\n", string(caCertPEM))
+
+	var (
+		certPEM []byte
+		keyPEM  []byte
+	)
+
+	secretNameAdmissionCert := admissionName + "-cert"
+	admissionDNSNames := []string{
+		admissionName,
+		admissionName + "." + namespace,
+		admissionName + "." + namespace + ".svc",
+		admissionName + "." + namespace + ".svc.cluster",
+		admissionName + "." + namespace + ".svc.cluster.local",
+	}
+
+	if certPEM, caKeyPEM, err = autoops.EnsureSecretAsKeyPair(
+		context.Background(),
+		client,
+		namespace,
+		secretNameAdmissionCert,
+		autoops.KeyPairOptions{
+			CACertPEM: caCertPEM,
+			CAKeyPEM:  caKeyPEM,
+			DNSNames:  admissionDNSNames,
+		},
+	); err != nil {
+		return
+	}
+
+	log.Println("Admission CertPEM\n" + string(certPEM))
+	log.Println("Admission KeyPEM\n" + string(keyPEM))
 }

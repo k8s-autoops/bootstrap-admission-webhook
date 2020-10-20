@@ -35,7 +35,11 @@ subjects:
   - kind: ServiceAccount
     name: admission-bootstrapper
     namespace: autoops
----
+```
+
+Here is a sample to install a admission webhoook, check their own `README`.
+
+```yaml
 # create job
 apiVersion: batch/v1
 kind: Job
@@ -44,25 +48,23 @@ metadata:
   name: admission-bootstrapper-xxxxx
   namespace: autoops
 spec:
-  jobTemplate:
+  template:
     spec:
-      template:
-        spec:
-          serviceAccount: admission-bootstrapper
-          containers:
-            - name: admission-bootstrapper
-              image: autoops/admission-bootstrapper
-              env:
-                - name: ADMISSION_NAME
-                  # !!!CHANGE ME!!!
-                  value: xxxxx-xxxxx
-                - name: ADMISSION_IMAGE
-                  # !!!CHANGE ME!!!
-                  value: autoops/auto-xxxxxx-xxxxxx
-                - name: ADMISSION_CFG
-                  # !!!CHANGE ME!!!
-                  value: xxxxxxxx
-          restartPolicy: OnFailure
+      serviceAccount: admission-bootstrapper
+      containers:
+        - name: admission-bootstrapper
+          image: autoops/admission-bootstrapper
+          env:
+            - name: ADMISSION_NAME
+              # !!!CHANGE ME!!!
+              value: xxxxx-xxxxx
+            - name: ADMISSION_IMAGE
+              # !!!CHANGE ME!!!
+              value: autoops/auto-xxxxxx-xxxxxx
+            - name: ADMISSION_CFG
+              # !!!CHANGE ME!!!
+              value: xxxxxxxx
+      restartPolicy: OnFailure
 ```
 
 ## Credits
