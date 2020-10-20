@@ -1,4 +1,4 @@
-# template-autoops-cronjob
+# admission-bootstrapper
 
 ## Usage
 
@@ -9,49 +9,59 @@ Create namespace `autoops` and apply yaml resources as described below.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: template-autoops-cronjob
+  name: admission-bootstrapper
   namespace: autoops
 ---
 # create clusterrole
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
-  name: template-autoops-cronjob
+  name: admission-bootstrapper
 rules:
   - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["list"]
+    resources: ["secrets"]
+    verbs: ["get", "create"]
 ---
 # create clusterrolebinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
-  name: template-autoops-cronjob
+  name: admission-bootstrapper
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: template-autoops-cronjob
+  name: admission-bootstrapper
 subjects:
   - kind: ServiceAccount
-    name: template-autoops-cronjob
+    name: admission-bootstrapper
     namespace: autoops
 ---
-# create cronjob
-apiVersion: batch/v1beta1
-kind: CronJob
+# create job
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: template-autoops-cronjob
+  # !!!CHANGE ME!!!
+  name: admission-bootstrapper-xxxxx
   namespace: autoops
 spec:
-  schedule: "*/5 * * * *"
   jobTemplate:
     spec:
       template:
         spec:
-          serviceAccount: template-autoops-cronjob
+          serviceAccount: admission-bootstrapper
           containers:
-            - name: template-autoops-cronjob
-              image: autoops/template-autoops-cronjob
+            - name: admission-bootstrapper
+              image: autoops/admission-bootstrapper
+              env:
+                - name: ADMISSION_NAME
+                  # !!!CHANGE ME!!!
+                  value: xxxxx-xxxxx
+                - name: ADMISSION_IMAGE
+                  # !!!CHANGE ME!!!
+                  value: autoops/auto-xxxxxx-xxxxxx
+                - name: ADMISSION_CFG
+                  # !!!CHANGE ME!!!
+                  value: xxxxxxxx
           restartPolicy: OnFailure
 ```
 

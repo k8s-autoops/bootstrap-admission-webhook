@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"fmt"
+	"github.com/k8s-autoops/autoops"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"log"
 	"os"
+	"strings"
+)
+
+const (
+	SecretAdmissionBootstrapperCA = "admission-bootstrapper-ca"
 )
 
 func exit(err *error) {
@@ -26,19 +30,47 @@ func main() {
 	var err error
 	defer exit(&err)
 
-	var cfg *rest.Config
-	if cfg, err = rest.InClusterConfig(); err != nil {
+	admissionName := strings.TrimSpace(os.Getenv("ADMISSION_NAME"))
+	if admissionName == "" {
+		err = fmt.Errorf("missing environment variable: ADMISSION_NAME")
 		return
 	}
+	admissionImage := strings.TrimSpace(os.Getenv("ADMISSION_IMAGE"))
+	if admissionImage == "" {
+		err = fmt.Errorf("missing environment variable: ADMISSION_IMAGE")
+		return
+	}
+	admissionCfg := strings.TrimSpace(os.Getenv("ADMISSION_CFG"))
+	if admissionCfg == "" {
+		err = fmt.Errorf("missing environment variable: ADMISSION_CFG")
+		return
+	}
+
 	var client *kubernetes.Clientset
-	if client, err = kubernetes.NewForConfig(cfg); err != nil {
+	if client, err = autoops.InClusterClient(); err != nil {
 		return
 	}
 
-	var pods *corev1.PodList
-	if pods, err = client.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{}); err != nil {
+	var namespace string
+	if namespace, err = autoops.CurrentNamespace(); err != nil {
 		return
 	}
 
-	log.Println("Total Pods:", len(pods.Items))
+	var (
+		caCertPEM []byte
+		caKeyPEM  []byte
+	)
+
+	if caCertPEM, caKeyPEM, err = autoops.EnsureSecretAsKeyPair(
+		context.Background(),
+		client,
+		namespace,
+		SecretAdmissionBootstrapperCA,
+		autoops.KeyPairOptions{},
+	); err != nil {
+		return
+	}
+
+	log.Println("Ensured CACertPEM:", string(caCertPEM))
+	log.Println("Ensured CAKeyPEM:", string(caKeyPEM))
 }
