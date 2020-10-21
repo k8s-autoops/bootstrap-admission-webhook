@@ -164,6 +164,10 @@ github.com/k8s-autoops/autoops v1.0.0 h1:i61E+KzqaUM7G/vJjQsXKtVp5N0grGh546uzDyy
 github.com/k8s-autoops/autoops v1.0.0/go.mod h1:C2MjcEVcrEDMpmkLWqi5Vz0EQJIQfTdoDU1+m0/hYug=
 github.com/k8s-autoops/autoops v1.0.1 h1:RuUpPsVr17ahQrU9gMcoSaSvLOJKKCySD2TqG5Kiia8=
 github.com/k8s-autoops/autoops v1.0.1/go.mod h1:C2MjcEVcrEDMpmkLWqi5Vz0EQJIQfTdoDU1+m0/hYug=
+github.com/k8s-autoops/autoops v1.0.2 h1:tSej0OyriDZiDV2tdR9VRDetZ2PSuj6C7oppzyTzQ+M=
+github.com/k8s-autoops/autoops v1.0.2/go.mod h1:C2MjcEVcrEDMpmkLWqi5Vz0EQJIQfTdoDU1+m0/hYug=
+github.com/k8s-autoops/autoops v1.0.3 h1:bqWr2Z5ZXTzW/cHT8YFWuXeRjFZUo9PphpADp8qNnPM=
+github.com/k8s-autoops/autoops v1.0.3/go.mod h1:C2MjcEVcrEDMpmkLWqi5Vz0EQJIQfTdoDU1+m0/hYug=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/kr/pretty v0.1.0 h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=

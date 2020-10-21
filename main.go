@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/k8s-autoops/autoops"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"log"
 	"os"
@@ -71,7 +74,7 @@ func main() {
 		return
 	}
 
-	log.Println("Bootstrapper CA Ensured\n", string(caCertPEM))
+	log.Println("Bootstrapper CA Ensured:\n", string(caCertPEM))
 
 	var (
 		certPEM []byte
@@ -87,7 +90,7 @@ func main() {
 		admissionName + "." + namespace + ".svc.cluster.local",
 	}
 
-	if certPEM, caKeyPEM, err = autoops.EnsureSecretAsKeyPair(
+	if certPEM, keyPEM, err = autoops.EnsureSecretAsKeyPair(
 		context.Background(),
 		client,
 		namespace,
@@ -101,6 +104,33 @@ func main() {
 		return
 	}
 
-	log.Println("Admission CertPEM\n" + string(certPEM))
-	log.Println("Admission KeyPEM\n" + string(keyPEM))
+	log.Println("Admission Cert Ensured:\n" + string(certPEM))
+	_ = keyPEM
+
+	serviceName := admissionName
+	serviceSelector := map[string]string{
+		"k8s-app": admissionName,
+	}
+
+	if _, err = autoops.ServiceGetOrCreate(context.Background(), client, &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceName,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: serviceSelector,
+			Type:     corev1.ServiceTypeClusterIP,
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "https",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       443,
+					TargetPort: intstr.FromInt(443),
+				},
+			},
+		},
+	}); err != nil {
+		return
+	}
+
+	log.Println("Service Ensured:", serviceName)
 }
