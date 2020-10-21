@@ -19,14 +19,11 @@ metadata:
   name: admission-bootstrapper
 rules:
   - apiGroups: [""]
-    resources: ["secrets"]
+    resources: ["secrets", "services"]
     verbs: ["get", "create"]
-  - apiGroups: [""]
-    resources: ["services"]
-    verbs: ["create"]
   - apiGroups: ["apps"]
     resources: ["statefulsets"]
-    verbs: ["create"]
+    verbs: ["get", "create"]
 ---
 # create clusterrolebinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
@@ -51,7 +48,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   # !!!CHANGE ME!!!
-  name: admission-bootstrapper-demo
+  name: admission-bootstrapper-httpscat
   namespace: autoops
 spec:
   template:
@@ -63,10 +60,10 @@ spec:
           env:
             - name: ADMISSION_NAME
               # !!!CHANGE ME!!!
-              value: admission-demo
+              value: admission-httpscat
             - name: ADMISSION_IMAGE
               # !!!CHANGE ME!!!
-              value: guoyk/httpscat
+              value: autoops/admission-httpscat
             - name: ADMISSION_CFG
               # !!!CHANGE ME!!!
               value: xxxxxxxx

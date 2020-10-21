@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/k8s-autoops/autoops"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -81,24 +82,23 @@ func main() {
 		keyPEM  []byte
 	)
 
-	secretNameAdmissionCert := admissionName + "-cert"
-	admissionDNSNames := []string{
-		admissionName,
-		admissionName + "." + namespace,
-		admissionName + "." + namespace + ".svc",
-		admissionName + "." + namespace + ".svc.cluster",
-		admissionName + "." + namespace + ".svc.cluster.local",
-	}
+	secretNameCert := admissionName + "-cert"
 
 	if certPEM, keyPEM, err = autoops.EnsureSecretAsKeyPair(
 		context.Background(),
 		client,
 		namespace,
-		secretNameAdmissionCert,
+		secretNameCert,
 		autoops.KeyPairOptions{
 			CACertPEM: caCertPEM,
 			CAKeyPEM:  caKeyPEM,
-			DNSNames:  admissionDNSNames,
+			DNSNames: []string{
+				admissionName,
+				admissionName + "." + namespace,
+				admissionName + "." + namespace + ".svc",
+				admissionName + "." + namespace + ".svc.cluster",
+				admissionName + "." + namespace + ".svc.cluster.local",
+			},
 		},
 	); err != nil {
 		return
@@ -114,7 +114,8 @@ func main() {
 
 	if _, err = autoops.ServiceGetOrCreate(context.Background(), client, &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceName,
+			Namespace: namespace,
+			Name:      serviceName,
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: serviceSelector,
@@ -133,4 +134,63 @@ func main() {
 	}
 
 	log.Println("Service Ensured:", serviceName)
+
+	statefulsetName := admissionName
+
+	if _, err = autoops.StatefulSetGetOrCreate(
+		context.Background(),
+		client,
+		&appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      statefulsetName,
+			},
+			Spec: appsv1.StatefulSetSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: serviceSelector,
+				},
+				ServiceName: serviceName,
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: serviceSelector,
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{
+								Name:            statefulsetName,
+								Image:           admissionImage,
+								ImagePullPolicy: corev1.PullAlways,
+								Ports: []corev1.ContainerPort{
+									{
+										Name:          "https",
+										Protocol:      corev1.ProtocolTCP,
+										ContainerPort: 443,
+									},
+								},
+								VolumeMounts: []corev1.VolumeMount{
+									{
+										Name:      "vol-tls",
+										MountPath: "/autoops-data/tls",
+									},
+								},
+							},
+						},
+						Volumes: []corev1.Volume{
+							{
+								Name: "vol-tls",
+								VolumeSource: corev1.VolumeSource{
+									Secret: &corev1.SecretVolumeSource{
+										SecretName: secretNameCert,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}); err != nil {
+		return
+	}
+
+	log.Println("Statefulset Ensured:", serviceName)
 }
