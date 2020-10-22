@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/k8s-autoops/autoops"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -34,21 +38,24 @@ func main() {
 	var err error
 	defer exit(&err)
 
-	admissionName := strings.TrimSpace(os.Getenv("ADMISSION_NAME"))
-	if admissionName == "" {
+	envAdmissionName := strings.TrimSpace(os.Getenv("ADMISSION_NAME"))
+	if envAdmissionName == "" {
 		err = fmt.Errorf("missing environment variable: ADMISSION_NAME")
 		return
 	}
-	admissionImage := strings.TrimSpace(os.Getenv("ADMISSION_IMAGE"))
-	if admissionImage == "" {
+	envAdmissionImage := strings.TrimSpace(os.Getenv("ADMISSION_IMAGE"))
+	if envAdmissionImage == "" {
 		err = fmt.Errorf("missing environment variable: ADMISSION_IMAGE")
 		return
 	}
-	admissionCfg := strings.TrimSpace(os.Getenv("ADMISSION_CFG"))
-	if admissionCfg == "" {
-		err = fmt.Errorf("missing environment variable: ADMISSION_CFG")
-		return
+	envAdmissionEnvs := strings.TrimSpace(os.Getenv("ADMISSION_ENVS"))
+	envAdmissionMutating, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("ADMISSION_MUTATING")))
+	envAdmissionRules := strings.TrimSpace(os.Getenv("ADMISSION_RULES"))
+	envAdmissionSideEffect := strings.TrimSpace(os.Getenv("ADMISSION_SIDE_EFFECT"))
+	if envAdmissionSideEffect == "" {
+		envAdmissionSideEffect = string(admissionregistrationv1.SideEffectClassUnknown)
 	}
+	envAdmissionIgnoreFailure, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("ADMISSION_IGNORE_FAILURE")))
 
 	var client *kubernetes.Clientset
 	if client, err = autoops.InClusterClient(); err != nil {
@@ -77,14 +84,11 @@ func main() {
 
 	log.Println("Bootstrapper CA Ensured:\n", string(caCertPEM))
 
-	var (
-		certPEM []byte
-		keyPEM  []byte
-	)
+	var certPEM []byte
 
-	secretNameCert := admissionName + "-cert"
+	secretNameCert := envAdmissionName + "-cert"
 
-	if certPEM, keyPEM, err = autoops.EnsureSecretAsKeyPair(
+	if certPEM, _, err = autoops.EnsureSecretAsKeyPair(
 		context.Background(),
 		client,
 		namespace,
@@ -93,11 +97,11 @@ func main() {
 			CACertPEM: caCertPEM,
 			CAKeyPEM:  caKeyPEM,
 			DNSNames: []string{
-				admissionName,
-				admissionName + "." + namespace,
-				admissionName + "." + namespace + ".svc",
-				admissionName + "." + namespace + ".svc.cluster",
-				admissionName + "." + namespace + ".svc.cluster.local",
+				envAdmissionName,
+				envAdmissionName + "." + namespace,
+				envAdmissionName + "." + namespace + ".svc",
+				envAdmissionName + "." + namespace + ".svc.cluster",
+				envAdmissionName + "." + namespace + ".svc.cluster.local",
 			},
 		},
 	); err != nil {
@@ -105,17 +109,15 @@ func main() {
 	}
 
 	log.Println("Admission Cert Ensured:\n" + string(certPEM))
-	_ = keyPEM
 
-	serviceName := admissionName
 	serviceSelector := map[string]string{
-		"k8s-app": admissionName,
+		"k8s-app": envAdmissionName,
 	}
 
 	if _, err = autoops.ServiceGetOrCreate(context.Background(), client, &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      serviceName,
+			Name:      envAdmissionName,
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: serviceSelector,
@@ -133,9 +135,21 @@ func main() {
 		return
 	}
 
-	log.Println("Service Ensured:", serviceName)
+	log.Println("Service Ensured:", envAdmissionName)
 
-	statefulsetName := admissionName
+	var statefulsetEnvVars []corev1.EnvVar
+	envSplits := strings.Split(envAdmissionEnvs, ";")
+	for _, envSplit := range envSplits {
+		kvSplits := strings.Split(envSplit, "=")
+		if len(kvSplits) != 2 {
+			continue
+		}
+		k, v := strings.TrimSpace(kvSplits[0]), strings.TrimSpace(kvSplits[1])
+		if k == "" {
+			continue
+		}
+		statefulsetEnvVars = append(statefulsetEnvVars, corev1.EnvVar{Name: k, Value: v})
+	}
 
 	if _, err = autoops.StatefulSetGetOrCreate(
 		context.Background(),
@@ -143,13 +157,13 @@ func main() {
 		&appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
-				Name:      statefulsetName,
+				Name:      envAdmissionName,
 			},
 			Spec: appsv1.StatefulSetSpec{
 				Selector: &metav1.LabelSelector{
 					MatchLabels: serviceSelector,
 				},
-				ServiceName: serviceName,
+				ServiceName: envAdmissionName,
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
 						Labels: serviceSelector,
@@ -157,9 +171,10 @@ func main() {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{
-								Name:            statefulsetName,
-								Image:           admissionImage,
+								Name:            envAdmissionName,
+								Image:           envAdmissionImage,
 								ImagePullPolicy: corev1.PullAlways,
+								Env:             statefulsetEnvVars,
 								Ports: []corev1.ContainerPort{
 									{
 										Name:          "https",
@@ -192,5 +207,105 @@ func main() {
 		return
 	}
 
-	log.Println("Statefulset Ensured:", serviceName)
+	log.Println("Statefulset Ensured:", envAdmissionName)
+
+	var admissionRules []admissionregistrationv1.RuleWithOperations
+	if err = json.Unmarshal([]byte(envAdmissionRules), &admissionRules); err != nil {
+		return
+	}
+	admissionSideEffect := admissionregistrationv1.SideEffectClass(envAdmissionSideEffect)
+	var admissionFailurePolicy *admissionregistrationv1.FailurePolicyType
+	if envAdmissionIgnoreFailure {
+		admissionFailurePolicy = new(admissionregistrationv1.FailurePolicyType)
+		*admissionFailurePolicy = admissionregistrationv1.Ignore
+	}
+
+	if envAdmissionMutating {
+		if _, err = client.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+			context.Background(),
+			envAdmissionName,
+			metav1.GetOptions{},
+		); err != nil {
+			if errors.IsNotFound(err) {
+				err = nil
+			} else {
+				return
+			}
+		} else {
+			goto admissionEnsured
+		}
+
+		if _, err = client.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(
+			context.Background(),
+			&admissionregistrationv1.MutatingWebhookConfiguration{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: envAdmissionName,
+				},
+				Webhooks: []admissionregistrationv1.MutatingWebhook{
+					{
+						Name: envAdmissionName + ".k8s-autoops.github.io",
+						ClientConfig: admissionregistrationv1.WebhookClientConfig{
+							CABundle: caCertPEM,
+							Service: &admissionregistrationv1.ServiceReference{
+								Namespace: namespace,
+								Name:      envAdmissionName,
+							},
+						},
+						Rules:                   admissionRules,
+						SideEffects:             &admissionSideEffect,
+						FailurePolicy:           admissionFailurePolicy,
+						AdmissionReviewVersions: []string{"v1"},
+					},
+				},
+			},
+			metav1.CreateOptions{},
+		); err != nil {
+			return
+		}
+	} else {
+		if _, err = client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(
+			context.Background(),
+			envAdmissionName,
+			metav1.GetOptions{},
+		); err != nil {
+			if errors.IsNotFound(err) {
+				err = nil
+			} else {
+				return
+			}
+		} else {
+			goto admissionEnsured
+		}
+
+		if _, err = client.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(
+			context.Background(),
+			&admissionregistrationv1.ValidatingWebhookConfiguration{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: envAdmissionName,
+				},
+				Webhooks: []admissionregistrationv1.ValidatingWebhook{
+					{
+						Name: envAdmissionName + ".k8s-autoops.github.io",
+						ClientConfig: admissionregistrationv1.WebhookClientConfig{
+							CABundle: caCertPEM,
+							Service: &admissionregistrationv1.ServiceReference{
+								Namespace: namespace,
+								Name:      envAdmissionName,
+							},
+						},
+						Rules:                   admissionRules,
+						SideEffects:             &admissionSideEffect,
+						FailurePolicy:           admissionFailurePolicy,
+						AdmissionReviewVersions: []string{"v1"},
+					},
+				},
+			},
+			metav1.CreateOptions{},
+		); err != nil {
+			return
+		}
+	}
+
+admissionEnsured:
+	log.Println("AdmissionWebHook ensured:", envAdmissionName)
 }

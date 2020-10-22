@@ -24,6 +24,9 @@ rules:
   - apiGroups: ["apps"]
     resources: ["statefulsets"]
     verbs: ["get", "create"]
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+    verbs: ["get", "create"]
 ---
 # create clusterrolebinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
@@ -59,14 +62,19 @@ spec:
           image: autoops/admission-bootstrapper
           env:
             - name: ADMISSION_NAME
-              # !!!CHANGE ME!!!
               value: admission-httpscat
             - name: ADMISSION_IMAGE
-              # !!!CHANGE ME!!!
               value: autoops/admission-httpscat
-            - name: ADMISSION_CFG
-              # !!!CHANGE ME!!!
-              value: xxxxxxxx
+            - name: ADMISSION_ENVS
+              value: "AAAA=BBBB;CCCC=DDDD"
+            - name: ADMISSION_MUTATING
+              value: "false"
+            - name: ADMISSION_IGNORE_FAILURE
+              value: "true"
+            - name: ADMISSION_SIDE_EFFECT
+              value: "None"
+            - name: ADMISSION_RULES
+              value: '[{"operations":["*"],"apiGroups":[""], "apiVersions":["*"], "resources":["configmaps"]}]'
       restartPolicy: OnFailure
 ```
 
