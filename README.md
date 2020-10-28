@@ -1,8 +1,13 @@
 # admission-bootstrapper
 
+A tool to deploy admission webhooks in kubernetes, no need to concern any certificate signing issues.
+
 ## Usage
 
-Create namespace `autoops` and apply yaml resources as described below.
+### Initialization
+
+* Create namespace `autoops`
+* Apply resources as described below
 
 ```yaml
 # create serviceaccount
@@ -43,7 +48,18 @@ subjects:
     namespace: autoops
 ```
 
-Here is a sample to install a admission webhoook, check their own `README`.
+### Deploy an Admission Webhook
+
+**Image Requirements**
+
+* Listens at `:443`
+* Use certificates from `/autoops-data/tls/tls.crt` and `/autoops-data/tls/tls.key`
+
+**Example**
+
+See https://github.com/k8s-autoops/admission-httpscat
+
+Here is an example to deploy `admission-httpscat` to validate any `CREATE` operations of `ConfigMap`
 
 ```yaml
 # create job
@@ -74,9 +90,10 @@ spec:
             - name: ADMISSION_SIDE_EFFECT
               value: "None"
             - name: ADMISSION_RULES
-              value: '[{"operations":["*"],"apiGroups":[""], "apiVersions":["*"], "resources":["configmaps"]}]'
+              value: '[{"operations":["CREATE"],"apiGroups":[""], "apiVersions":["*"], "resources":["configmaps"]}]'
       restartPolicy: OnFailure
 ```
+
 
 ## Credits
 
