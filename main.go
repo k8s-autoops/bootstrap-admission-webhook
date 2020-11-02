@@ -56,6 +56,7 @@ func main() {
 		envAdmissionSideEffect = string(admissionregistrationv1.SideEffectClassUnknown)
 	}
 	envAdmissionIgnoreFailure, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("ADMISSION_IGNORE_FAILURE")))
+	envAdmissionServiceAccount := strings.TrimSpace(os.Getenv("ADMISSION_SERVICE_ACCOUNT"))
 
 	var client *kubernetes.Clientset
 	if client, err = autoops.InClusterClient(); err != nil {
@@ -190,6 +191,7 @@ func main() {
 								},
 							},
 						},
+						ServiceAccountName: envAdmissionServiceAccount,
 						Volumes: []corev1.Volume{
 							{
 								Name: "vol-tls",

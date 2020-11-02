@@ -69,6 +69,8 @@ spec:
               value: "AAAA=BBBB;CCCC=DDDD"
             - name: ADMISSION_MUTATING
               value: "false"
+            - name: ADMISSION_SERVICE_ACCOUNT
+              value: ""
             - name: ADMISSION_IGNORE_FAILURE
               value: "true"
             - name: ADMISSION_SIDE_EFFECT
