@@ -186,7 +186,13 @@ func main() {
 								VolumeMounts: []corev1.VolumeMount{
 									{
 										Name:      "vol-tls",
-										MountPath: "/autoops-data/tls",
+										SubPath:   corev1.TLSCertKey,
+										MountPath: autoops.AdmissionServerCertFile,
+									},
+									{
+										Name:      "vol-tls",
+										SubPath:   corev1.TLSPrivateKeyKey,
+										MountPath: autoops.AdmissionServerKeyFile,
 									},
 								},
 							},
