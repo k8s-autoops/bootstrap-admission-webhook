@@ -16,6 +16,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -216,6 +217,8 @@ func main() {
 	}
 
 	log.Println("Statefulset Ensured:", envAdmissionName)
+
+	time.Sleep(time.Second * 10)
 
 	var admissionRules []admissionregistrationv1.RuleWithOperations
 	if err = json.Unmarshal([]byte(envAdmissionRules), &admissionRules); err != nil {
